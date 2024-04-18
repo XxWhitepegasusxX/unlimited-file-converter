@@ -1,3 +1,4 @@
+import Dropzone from "@/components/custom/dropzone";
 import React from "react";
 
 export default function Home() {
@@ -13,6 +14,8 @@ export default function Home() {
           now and elevate your content like never before!
         </p>
       </div>
+
+      <Dropzone/>
     </main>
   );
 }

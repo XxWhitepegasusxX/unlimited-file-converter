@@ -1,13 +1,13 @@
-"use client"
-/* eslint-disable react-hooks/exhaustive-deps */
+"use client";
 
+// imports
 import { FiUploadCloud } from "react-icons/fi";
 import { LuFileSymlink } from "react-icons/lu";
 import { MdClose } from "react-icons/md";
 import ReactDropzone from "react-dropzone";
 import bytesToSize from "@/utils/bytes-to-size";
 import fileToIcon from "@/utils/file-to-icon";
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import compressFileName from "@/utils/compress-file-name";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,170 +31,160 @@ import type { Action } from "@/types";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 
 const extensions = {
-    image: [
-      "jpg",
-      "jpeg",
-      "png",
-      "gif",
-      "bmp",
-      "webp",
-      "ico",
-      "tif",
-      "tiff",
-      "svg",
-      "raw",
-      "tga",
-    ],
-    video: [
-      "mp4",
-      "m4v",
-      "mp4v",
-      "3gp",
-      "3g2",
-      "avi",
-      "mov",
-      "wmv",
-      "mkv",
-      "flv",
-      "ogv",
-      "webm",
-      "h264",
-      "264",
-      "hevc",
-      "265",
-    ],
-    audio: ["mp3", "wav", "ogg", "aac", "wma", "flac", "m4a"],
+  image: [
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "bmp",
+    "webp",
+    "ico",
+    "tif",
+    "tiff",
+    "svg",
+    "raw",
+    "tga",
+  ],
+  video: [
+    "mp4",
+    "m4v",
+    "mp4v",
+    "3gp",
+    "3g2",
+    "avi",
+    "mov",
+    "wmv",
+    "mkv",
+    "flv",
+    "ogv",
+    "webm",
+    "h264",
+    "264",
+    "hevc",
+    "265",
+  ],
+  audio: ["mp3", "wav", "ogg", "aac", "wma", "flac", "m4a"],
 };
 
-export default function Dropzone(){
-    // variables & hooks
-    const { toast } = useToast();
-    const [is_hover, setIsHover] = useState<boolean>(false);
-    const [actions, setActions] = useState<Action[]>([])
-    const [is_ready, setIsReady] = useState<boolean>(false)
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    const  [files, setFiles] = useState<Array<any>>([])
-    const [is_loaded, setIsLoaded] = useState<boolean>(false)
-    const [is_converting, setIsConverting] = useState<boolean>(false)
-    const [is_done, setIsDone] = useState<boolean>(false)
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    const ffmpegRef = useRef<any>(null)
-    const [defaultValues, setDefaultValues] = useState<string>("video");
-    const [selected, setSelected] = useState<string>("...")
+export default function Dropzone() {
+  // variables & hooks
+  const { toast } = useToast();
+  const [is_hover, setIsHover] = useState<boolean>(false);
+  const [actions, setActions] = useState<Action[]>([]);
+  const [is_ready, setIsReady] = useState<boolean>(false);
+  const [files, setFiles] = useState<Array<any>>([]);
+  const [is_loaded, setIsLoaded] = useState<boolean>(false);
+  const [is_converting, setIsConverting] = useState<boolean>(false);
+  const [is_done, setIsDone] = useState<boolean>(false);
+  const ffmpegRef = useRef<any>(null);
+  const [defaultValues, setDefaultValues] = useState<string>("video");
+  const [selcted, setSelected] = useState<string>("...");
+  const accepted_files = {
+    "image/*": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".bmp",
+      ".webp",
+      ".ico",
+      ".tif",
+      ".tiff",
+      ".raw",
+      ".tga",
+    ],
+    "audio/*": [],
+    "video/*": [],
+  };
 
-    const accepted_files = {
-        "image/*": [
-          ".jpg",
-          ".jpeg",
-          ".png",
-          ".gif",
-          ".bmp",
-          ".webp",
-          ".ico",
-          ".tif",
-          ".tiff",
-          ".raw",
-          ".tga",
-        ],
-        "audio/*": [],
-        "video/*": [],
-    };
-    
-    // functions
-    const reset = () => {
-        setIsDone(false);
-        setActions([])
-        setFiles([])
-        setIsReady(false)
-        setIsConverting(false)
+  // functions
+  const reset = () => {
+    setIsDone(false);
+    setActions([]);
+    setFiles([]);
+    setIsReady(false);
+    setIsConverting(false);
+  };
+  const downloadAll = (): void => {
+    for (let action of actions) {
+      !action.is_error && download(action);
     }
+  };
+  const download = (action: Action) => {
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = action.url;
+    a.download = action.output;
 
-    const downloadAll = (): void => {
-        for (const action of actions){
-            !action.is_error && download(action);
-        }
-    }
+    document.body.appendChild(a);
+    a.click();
 
-    const download = (action: Action) => {
-        const a = document.createElement("a")
-        a.style.display = "none"
-        a.href = action.url
-        a.download = action.output
-
-        document.body.appendChild(a)
-        a.click();
-
-        URL.revokeObjectURL(action.url)
-        document.body.removeChild(a)
-    }
-
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    const convert = async (): Promise<any> => {
-        let tmp_actions = actions.map((elt) => ({
-          ...elt,
-          is_converting: true,
-        }));
+    // Clean up after download
+    URL.revokeObjectURL(action.url);
+    document.body.removeChild(a);
+  };
+  const convert = async (): Promise<any> => {
+    let tmp_actions = actions.map((elt) => ({
+      ...elt,
+      is_converting: true,
+    }));
+    setActions(tmp_actions);
+    setIsConverting(true);
+    for (let action of tmp_actions) {
+      try {
+        const { url, output } = await convertFile(ffmpegRef.current, action);
+        tmp_actions = tmp_actions.map((elt) =>
+          elt === action
+            ? {
+                ...elt,
+                is_converted: true,
+                is_converting: false,
+                url,
+                output,
+              }
+            : elt
+        );
         setActions(tmp_actions);
-        setIsConverting(true);
-        for (const action of tmp_actions) {
-          try {
-            const { url, output } = await convertFile(ffmpegRef.current, action);
-            tmp_actions = tmp_actions.map((elt) =>
-              elt === action
-                ? {
-                    ...elt,
-                    is_converted: true,
-                    is_converting: false,
-                    url,
-                    output,
-                  }
-                : elt
-            );
-            setActions(tmp_actions);
-          } catch (err) {
-            tmp_actions = tmp_actions.map((elt) =>
-              elt === action
-                ? {
-                    ...elt,
-                    is_converted: false,
-                    is_converting: false,
-                    is_error: true,
-                  }
-                : elt
-            );
-            setActions(tmp_actions);
-          }
-        }
-        setIsDone(true);
-        setIsConverting(false);
-    };
-    
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    const handleUpload = (data: Array<any>): void => {
-        handleExitHover();
-        setFiles(data);
-        const tmp: Action[] = [];
-        // biome-ignore lint/complexity/noForEach: <explanation>
-        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-        data.forEach((file: any) => {
-          const formData = new FormData();
-          tmp.push({
-            file_name: file.name,
-            file_size: file.size,
-            from: file.name.slice(((file.name.lastIndexOf(".") - 1) >>> 0) + 2),
-            to: null,
-            file_type: file.type,
-            file,
-            is_converted: false,
-            is_converting: false,
-            is_error: false,
-          });
-        });
-        setActions(tmp);
-    };
-    const handleHover = (): void => setIsHover(true);
+      } catch (err) {
+        tmp_actions = tmp_actions.map((elt) =>
+          elt === action
+            ? {
+                ...elt,
+                is_converted: false,
+                is_converting: false,
+                is_error: true,
+              }
+            : elt
+        );
+        setActions(tmp_actions);
+      }
+    }
+    setIsDone(true);
+    setIsConverting(false);
+  };
+  const handleUpload = (data: Array<any>): void => {
+    handleExitHover();
+    setFiles(data);
+    const tmp: Action[] = [];
+    data.forEach((file: any) => {
+      const formData = new FormData();
+      tmp.push({
+        file_name: file.name,
+        file_size: file.size,
+        from: file.name.slice(((file.name.lastIndexOf(".") - 1) >>> 0) + 2),
+        to: null,
+        file_type: file.type,
+        file,
+        is_converted: false,
+        is_converting: false,
+        is_error: false,
+      });
+    });
+    setActions(tmp);
+  };
+  const handleHover = (): void => setIsHover(true);
   const handleExitHover = (): void => setIsHover(false);
-  const updateAction = (file_name: string, to: string) => {
+  const updateAction = (file_name: String, to: String) => {
     setActions(
       actions.map((action): Action => {
         if (action.file_name === file_name) {
@@ -211,7 +201,6 @@ export default function Dropzone(){
   };
   const checkIsReady = (): void => {
     let tmp_is_ready = true;
-    // biome-ignore lint/complexity/noForEach: <explanation>
     actions.forEach((action: Action) => {
       if (!action.to) tmp_is_ready = false;
     });
@@ -221,8 +210,7 @@ export default function Dropzone(){
     setActions(actions.filter((elt) => elt !== action));
     setFiles(files.filter((elt) => elt.name !== action.file_name));
   };
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
-    useEffect(() => {
+  useEffect(() => {
     if (!actions.length) {
       setIsDone(false);
       setFiles([]);
@@ -243,10 +231,9 @@ export default function Dropzone(){
   if (actions.length) {
     return (
       <div className="space-y-6">
-        {/* biome-ignore lint/suspicious/noExplicitAny: <explanation> */}
         {actions.map((action: Action, i: any) => (
           <div
-            key={i + action}
+            key={i}
             className="w-full py-4 space-y-2 lg:py-0 relative cursor-pointer rounded-xl border h-fit lg:h-20 px-4 lg:px-10 flex flex-wrap lg:flex-nowrap items-center justify-between"
           >
             {!is_loaded && (
@@ -296,7 +283,7 @@ export default function Dropzone(){
                     setSelected(value);
                     updateAction(action.file_name, value);
                   }}
-                  value={selected}
+                  value={selcted}
                 >
                   <SelectTrigger className="w-32 outline-none focus:outline-none focus:ring-0 text-center text-muted-foreground bg-background text-md font-medium">
                     <SelectValue placeholder="..." />
@@ -305,7 +292,7 @@ export default function Dropzone(){
                     {action.file_type.includes("image") && (
                       <div className="grid grid-cols-2 gap-2 w-fit">
                         {extensions.image.map((elt, i) => (
-                          <div key={i + elt} className="col-span-1 text-center">
+                          <div key={i} className="col-span-1 text-center">
                             <SelectItem value={elt} className="mx-auto">
                               {elt}
                             </SelectItem>
@@ -326,7 +313,7 @@ export default function Dropzone(){
                         <TabsContent value="video">
                           <div className="grid grid-cols-3 gap-2 w-fit">
                             {extensions.video.map((elt, i) => (
-                              <div key={i + elt} className="col-span-1 text-center">
+                              <div key={i} className="col-span-1 text-center">
                                 <SelectItem value={elt} className="mx-auto">
                                   {elt}
                                 </SelectItem>
@@ -337,7 +324,7 @@ export default function Dropzone(){
                         <TabsContent value="audio">
                           <div className="grid grid-cols-3 gap-2 w-fit">
                             {extensions.audio.map((elt, i) => (
-                              <div key={i + elt} className="col-span-1 text-center">
+                              <div key={i} className="col-span-1 text-center">
                                 <SelectItem value={elt} className="mx-auto">
                                   {elt}
                                 </SelectItem>
@@ -350,7 +337,7 @@ export default function Dropzone(){
                     {action.file_type.includes("audio") && (
                       <div className="grid grid-cols-2 gap-2 w-fit">
                         {extensions.audio.map((elt, i) => (
-                          <div key={i + elt} className="col-span-1 text-center">
+                          <div key={i} className="col-span-1 text-center">
                             <SelectItem value={elt} className="mx-auto">
                               {elt}
                             </SelectItem>
@@ -368,11 +355,10 @@ export default function Dropzone(){
                 Download
               </Button>
             ) : (
-              // biome-ignore lint/a11y/useKeyWithClickEvents: <explanation>
-                <span
+              <span
                 onClick={() => deleteAction(action)}
                 className="cursor-pointer hover:bg-muted rounded-full h-10 w-10 flex items-center justify-center text-2xl text-foreground"
-                >
+              >
                 <MdClose />
               </span>
             )}
